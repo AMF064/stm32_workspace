@@ -46,7 +46,7 @@ typedef struct {
 #define IN2_PORT 7 * 2
 #define IN3_PORT 8 * 2
 #define IN4_PORT 9 * 2
-#define SECOND 700000
+#define SECOND 3500000
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -94,7 +94,7 @@ void set_bits_in_register(volatile uint32_t *reg, uint32_t code, uint8_t length,
 void driver_set_motor(Motor *motor, Motor_State state)
 {
     set_bits_in_register(motor->in1, state & 1, 1, motor->in1_offset);
-    set_bits_in_register(motor->in2, state & 2, 1, motor->in2_offset);
+    set_bits_in_register(motor->in2, (state >> 1) & 1, 1, motor->in2_offset);
 }
 
 void wait_cycles(uint32_t ncycles)
