@@ -33,8 +33,8 @@ typedef enum {
 } Motor_State;
 
 typedef struct {
-    uint32_t *in1;
-    uint32_t *in2;
+    volatile uint32_t *in1;
+    volatile uint32_t *in2;
     uint8_t in1_offset;
     uint8_t in2_offset;
 } Motor;
@@ -93,8 +93,8 @@ void set_bits_in_register(volatile uint32_t *reg, uint32_t code, uint8_t length,
 
 void driver_set_motor(Motor *motor, Motor_State state)
 {
-    set_bits_in_register(&motor->in1, state & 1, 1, motor->in1_offset);
-    set_bits_in_register(&motor->in2, state & 2, 1, motor->in2_offset);
+    set_bits_in_register(motor->in1, state & 1, 1, motor->in1_offset);
+    set_bits_in_register(motor->in2, state & 2, 1, motor->in2_offset);
 }
 
 void wait_cycles(uint32_t ncycles)
