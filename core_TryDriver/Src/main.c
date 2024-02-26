@@ -27,9 +27,9 @@
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 typedef enum {
-    STOP = 0,
-    FORWARD = 1,
-    BACKWARD = 2,
+    STOP = 0b00,
+    FORWARD = 0b01,
+    BACKWARD = 0b10,
 } Motor_State;
 
 typedef struct {
@@ -42,11 +42,15 @@ typedef struct {
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define IN1 6
+#define IN2 7
+#define IN3 8
+#define IN4 9
 #define IN1_PORT 6 * 2
 #define IN2_PORT 7 * 2
 #define IN3_PORT 8 * 2
 #define IN4_PORT 9 * 2
-#define SECOND 3500000
+#define SECOND 2000000
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -155,17 +159,26 @@ int main(void)
   set_bits_in_register(&GPIOC->MODER, 0b01, 2, IN3_PORT);
   set_bits_in_register(&GPIOC->MODER, 0b01, 2, IN4_PORT);
 
+  /* Este bloque no es necesario
+  set_bits_in_register(&GPIOC->PUPDR, 0b10, 2, IN1_PORT);
+  set_bits_in_register(&GPIOC->PUPDR, 0b10, 2, IN2_PORT);
+  set_bits_in_register(&GPIOC->PUPDR, 0b10, 2, IN3_PORT);
+  set_bits_in_register(&GPIOC->PUPDR, 0b10, 2, IN4_PORT);
+  */
+
   Motor motor1 = { .in1 = &GPIOC->ODR, .in2 = &GPIOC->ODR,
-      .in1_offset = IN1_PORT / 2, .in2_offset = IN2_PORT / 2 };
+      .in1_offset = IN1, .in2_offset = IN2 };
 
   Motor motor2 = { .in1 = &GPIOC->ODR, .in2 = &GPIOC->ODR,
-      .in1_offset = IN3_PORT / 2, .in2_offset = IN4_PORT / 2 };
+      .in1_offset = IN3, .in2_offset = IN4 };
 
   uint8_t i = 0;
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  driver_set_motor(&motor1, STOP);
+  driver_set_motor(&motor2, STOP);
   while (1)
   {
     /* USER CODE END WHILE */
