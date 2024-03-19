@@ -8,11 +8,11 @@ void set_bits_in_register(volatile void *reg, uint8_t reg_size, uint32_t value, 
         return;
 
     uint32_t mask = (1 << size) - 1;
-    content &= mask;
-    uint32_t neg = ~content & mask;
+    value &= mask;
+    uint32_t neg = ~value & mask;
 
-    *reg |= (content << offset);
-    *reg &= ~(neg << offset);
+    * (uintptr_t *) reg |= (value << offset);
+    * (uintptr_t *) reg &= ~(neg << offset);
     
     //for(uint8_t count = 0; count < size; ++count)
     //{
