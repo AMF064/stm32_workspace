@@ -1,8 +1,7 @@
 #ifndef GPIO_H
 #define GPIO_H
 
-#define BITS_IMPLEMENTATION
-#include "./bits.h"
+#include "bits.h"
 
 #ifndef GPIODEF
 #define GPIODEF
@@ -21,7 +20,7 @@
 
 // Modes for OTYPER
 #define PUSHPULL 0
-#define ODRAIN 1
+#define OPEN_DRAIN 1
 
 // Alternate functions
 #define AF0 0
@@ -41,30 +40,14 @@
 #define AF14 14
 #define AF15 15
 
+GPIODEF void gpio_set_pin_alternate_function(GPIO_TypeDef* gpio, uint8_t port, uint8_t value);
+
 #define gpio_set_pin_mode(gpio, port, value) set_bits_in_32_register(&gpio->MODER, value, 2, 2 * port);
 #define gpio_set_pin_pupdr(gpio, port, value) set_bits_in_32_register(&gpio->PUPDR, value, 2, 2 * port);
 #define gpio_set_pin_type(gpio, port, value) set_bits_in_32_register(&gpio->OTYPER, value, 1, port);
-GPIODEF void gpio_set_pin_alternate_function(GPIO_TypeDef* gpio, uint8_t port, uint8_t value);
 
 #define gpio_set_pin(gpio, port) gpio->BSRR |= (1 << port);
 #define gpio_reset_pin(gpio, port) gpio->BSRR |= (1 << (port + 16));
 #define gpio_toggle_pin(gpio, port) gpio->ODR ^= (1 << port);
 
 #endif //GPIO_H
-
-/* --------END OF HEADER -------- */
-
-#ifdef GPIO_IMPLEMENTATION
-
-void gpio_set_pin_alternate_function(GPIO_TypeDef *gpio, uint8_t port, uint8_t value)
-{
-    uint32_t* reg = NULL;
-    if (port >= 16)
-        return;
-    if (port >= 7)
-        reg = gpio->AFR[1];
-    else
-        reg = gpio->AFR[0];
-    set_bits_in_32_register(reg, value, 4, 4 * port);
-}
-#endif // GPIO_IMPLEMENTATION

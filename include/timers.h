@@ -1,8 +1,7 @@
 #ifndef TIMERS_H
 #define TIMERS_H
 
-#define BITS_IMPLEMENTATIONS
-#include "./bits.h"
+#include "bits.h"
 
 #ifndef TIMDEF
 #define TIMDEF
@@ -32,11 +31,11 @@
 #define OC3PE 3
 #define OC3M 4
 #define OC3CE 7
-#define CC3S 8
-#define OC3FE 10
-#define OC3PE 11
-#define OC3M 12
-#define OC3CE 15
+#define CC4S 8
+#define OC4FE 10
+#define OC4PE 11
+#define OC4M 12
+#define OC4CE 15
 // EGR offsets
 #define CC1G 1
 #define CC2G 2
@@ -68,56 +67,9 @@
         timer->PSC = (psc) - 1;                         \
         timer->ARR = (arr) - 1;                         \
     } while (0)
-#define timer_set_pwm_dc(timer, channel, dc) timer->CCR(channel) = (dc)
+#define timer_set_pwm_dc_hidden(timer, channel, dc) timer->CCR##channel = (dc)
+#define timer_set_pwm_dc(timer, channel, dc) timer_set_pwm_dc_hidden(timer, channel, dc)
 
-TIMDEF void timer_set_pwm_mode(TIM_TypeDef* timer, uint8_t channel, uint8_t pwm_mode);
+TIMDEF void timer_set_pwm(TIM_TypeDef* timer, uint8_t channel, uint8_t pwm_mode, uint16_t pwm_dc);
 
 #endif // TIMERS_H
-
-/* -------- END OF HEADER --------*/
-
-#ifdef TIMERS_IMPLEMENTATION
-
-void timer_set_pwm_mode(TIM_TypeDef* timer, uint8_t channel, uint8_t pwm_mode)
-{
-    uint16_t *ccmr = NULL;
-    uint8_t pe_offset = 0,
-        m_offset = 0,
-        e_offset = 0;
-    switch (channel)
-    {
-    case 1:
-        pe_offset = OC1PE;
-        m_offset = OC1M;
-        e_offset = CC1E;
-        ccmr = timer->CCMR1;
-        break;
-    case 2:
-        pe_offset = OC2PE;
-        m_offset = OC2M;
-        e_offset = CC2E;
-        ccmr = timer->CCMR1;
-        break;
-    case 3:
-        pe_offset = OC3PE;
-        m_offset = OC3M;
-        e_offset = CC3E;
-        ccmr = timer->CCMR2;
-        break;
-    case 4:
-        pe_offset = OC4PE;
-        m_offset = OC4M;
-        e_offset = CC4E;
-        ccmr = timer->CCMR2;
-        break;
-    default:
-        return;
-    }
-    timer->CR1 |= (1 << ARPE);
-    timer->EGR |= 1;
-    *ccmr |= (1 << pe_offset);
-    timer->CCER |= (1 << e_offset);
-    set_bits_in_16_register(ccmr, pwm_mode, 3, m_offset);
-}
-
-#endif // TIMERS_IMPLEMENTATION
