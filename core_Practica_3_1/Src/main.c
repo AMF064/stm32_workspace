@@ -124,6 +124,7 @@ void EXTI1_IRQHandler(void)
         timer_set_pwm_dc(BUZZER_TIMER, BUZZER_CHANNEL, ON);
         driver_set_motor(motor1, &off);
         driver_set_motor(motor2, &off);
+        break_main_while = 1;
     }
     else
     {
@@ -144,6 +145,7 @@ void EXTI2_IRQHandler(void)
         timer_set_pwm_dc(BUZZER_TIMER, BUZZER_CHANNEL, ON);
         driver_set_motor(motor1, &off);
         driver_set_motor(motor2, &off);
+        break_main_while = 1;
     }
     else
     {
@@ -244,9 +246,12 @@ int main(void)
   while (!break_main_while)
   {
     /* USER CODE END WHILE */
-
+      // Adaptar lectura del ADC y
+      // Escribir la adaptación a los motores
     /* USER CODE BEGIN 3 */
   }
+  // Reactivar TOC
+  // Pitido continuo durante 2s
   /* USER CODE END 3 */
 }
 
