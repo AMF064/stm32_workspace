@@ -18,16 +18,17 @@
 #define ADC_READY (ADC1->SR & (1U << ADONS))
 #define ADC_WAIT_UNTIL_READY while (!ADC_READY)
 
-
 typedef enum {
-    12_BIT = 0,
-    10_BIT = 1,
-    8_BIT = 2,
-    6_BIT = 3,
+    BIT_12 = 0,
+    BIT_10 = 1,
+    BIT_8 = 2,
+    BIT_6 = 3,
 } Resolution;
 
 #define SCAN_ON 1
 #define SCAN_OFF 0
+
+#define adc_read
 
 ADCDEF void adc_start(uint8_t scan_mode_on, Resolution res, uint8_t channel);
 
