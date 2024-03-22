@@ -24,6 +24,17 @@
 #define EXTI14 14
 #define EXTI15 15
 
+// NVIC interrupt numbers
+#define NVIC_EXTI0 6
+#define NVIC_EXTI1 7
+#define NVIC_EXTI2 8
+#define NVIC_EXTI3 9
+#define NVIC_EXTI9_5 23
+#define NVIC_EXTI10_15 40
+#define NVIC_TIM2 28
+#define NVIC_TIM3 29
+#define NVIC_TIM4 30
+
 typedef enum {
     RISING_EDGE = 1,
     FALLING_EDGE = 2,
@@ -39,7 +50,18 @@ typedef enum {
     E = 5,
 } Selected_GPIO;
 
-TIMDEF void configure_interrupt(uint8_t int_number, RF_Mode rf_mode, Selected_GPIO gpio);
+INTDEF void configure_interrupt(uint8_t int_number, RF_Mode rf_mode, Selected_GPIO gpio);
 
+static inline void unmask_interrupt(uint8_t int_number)
+{
+    uint8_t nvic_subarray = (int_number >= 32) ? 1 : 0;
+    NVIC->ISER[nvic_subarray] |= (1 << (int_number % 32));
+}
+
+static inline void mask_interrupt(uint8_t int_number)
+{
+    uint8_t nvic_subarray = (int_number >= 32) ? 1 : 0;
+    NVIC->ICER[nvic_subarray] |= (1 << (int_number % 32));
+}
 
 #endif // INTERRUPTS_H

@@ -36,27 +36,38 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
+//GPIOs
 #define IR_GPIO GPIOC
 #define BUZZER_GPIO GPIOB
 #define DRIVER_GPIO GPIOC
+#define POT_GPIO GPIOA
 
+// Timers
 #define BUZZER_TIMER TIM4
 #define DRIVER_TIMER TIM3
 #define TOC_TIMER TIM2
+#define NVIC_TOC_TIMER NVIC_TIM2
 
+// Ports
 #define BUZZER 8
 #define IN1 6
 #define IN2 7
 #define IN3 8
 #define IN4 9
+#define IR1 1
+#define IR2 2
 #define POT_PORT 5
 #define USER_BUTTON 0
 
+// Timer channels
 #define BUZZER_CHANNEL 3
 #define IN1_CHANNEL 1
 #define IN2_CHANNEL 2
 #define IN3_CHANNEL 3
 #define IN4_CHANNEL 4
+
+// ADC channels
+#define POT_CHANNEL 5
 
 #define BOTH_READS ((GPIOC->IDR >> IR1) & (GPIOC->IDR >> IR2) & 1)
 
@@ -76,9 +87,14 @@ ADC_HandleTypeDef hadc;
 
 LCD_HandleTypeDef hlcd;
 
+TIM_HandleTypeDef htim2;
+TIM_HandleTypeDef htim3;
+TIM_HandleTypeDef htim4;
+
 /* USER CODE BEGIN PV */
 static uint8_t continue_from_pulse = 0;
-static uint8_t break_main_while = 0;
+static uint8_t disable_buzzer = 0;
+static uint8_t end_of_line = 0;
 
 static Motor motor1 = {
     .in1 = &DRIVER_TIMER->CCR1, .in1_offset = 0,
@@ -91,8 +107,10 @@ static Motor motor2 = {
 };
 
 static Motor_State off = {
-    .value1 = 0, .value2 = 0,
+    .value_1 = 0, .value_2 = 0,
 };
+
+static Motor_State motor_pwm = {0};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -101,6 +119,9 @@ static void MX_GPIO_Init(void);
 static void MX_ADC_Init(void);
 static void MX_LCD_Init(void);
 static void MX_TS_Init(void);
+static void MX_TIM2_Init(void);
+static void MX_TIM3_Init(void);
+static void MX_TIM4_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -109,10 +130,11 @@ static void MX_TS_Init(void);
 /* USER CODE BEGIN 0 */
 void EXTI0_IRQHandler(void)
 {
-    _disable_irq();
+   __disable_irq();
     continue_from_pulse = 1;
-    _enable_irq();
+   __enable_irq();
     EXTI->PR |= 1;
+    NVIC->ICER[0] |= 1; // Desactivar esta interrupcion una vez ocurrida.
 }
 
 void EXTI1_IRQHandler(void)
@@ -122,15 +144,15 @@ void EXTI1_IRQHandler(void)
     if (BOTH_READS)
     {
         timer_set_pwm_dc(BUZZER_TIMER, BUZZER_CHANNEL, ON);
-        driver_set_motor(motor1, &off);
-        driver_set_motor(motor2, &off);
-        break_main_while = 1;
+        driver_set_motor(&motor1, &off);
+        driver_set_motor(&motor2, &off);
+        end_of_line = 1;
     }
     else
     {
         timer_set_pwm_dc(BUZZER_TIMER, BUZZER_CHANNEL, (~value & 1) << 9);
-        driver_set_motor(motor1, motor_pwm);
-        driver_set_motor(motor2, &off);
+        driver_set_motor(&motor1, &motor_pwm);
+        driver_set_motor(&motor2, &off);
     }
     __enable_irq();
     EXTI->PR |= 2;
@@ -143,15 +165,15 @@ void EXTI2_IRQHandler(void)
     if (BOTH_READS)
     {
         timer_set_pwm_dc(BUZZER_TIMER, BUZZER_CHANNEL, ON);
-        driver_set_motor(motor1, &off);
-        driver_set_motor(motor2, &off);
-        break_main_while = 1;
+        driver_set_motor(&motor1, &off);
+        driver_set_motor(&motor2, &off);
+        end_of_line = 1;
     }
     else
     {
         timer_set_pwm_dc(BUZZER_TIMER, BUZZER_CHANNEL, (~value & 1) << 9);
-        driver_set_motor(motor1, off);
-        driver_set_motor(motor2, motor_pwm);
+        driver_set_motor(&motor1, &off);
+        driver_set_motor(&motor2, &motor_pwm);
     }
     __enable_irq();
     EXTI->PR |= 4;
@@ -159,11 +181,12 @@ void EXTI2_IRQHandler(void)
 
 void TIM2_IRQHandler(void)
 {
-    if (!TIM2->SR & (1 << CC1IF)) return;
-    _disable_irq();
+    if (!(TIM2->SR & (1 << CC1IF))) return;
+    __disable_irq();
     continue_from_pulse = 1;
     TIM4->SR &= 0;
-    _enable_irq();
+    if (disable_buzzer) timer_set_pwm_dc(BUZZER_TIMER, BUZZER_CHANNEL, OFF);
+    __enable_irq();
 }
 /* USER CODE END 0 */
 
@@ -198,6 +221,9 @@ int main(void)
   MX_ADC_Init();
   MX_LCD_Init();
   MX_TS_Init();
+  MX_TIM2_Init();
+  MX_TIM3_Init();
+  MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
   gpio_set_pin_mode(POT_GPIO, POT_PORT, ANALOG);
   gpio_set_pin_mode(GPIOA, USER_BUTTON, INPUT);
@@ -219,17 +245,17 @@ int main(void)
   configure_interrupt(EXTI2, BOTH_EDGES, C);
 
   timer_configure_clock_signal(BUZZER_TIMER, 16e3, 1e3);    // T = 0.5 s
-  timer_configure_clock_signal(DRIVER_TIMER, 127, 0xffff);   // f = 250 Hz
-  timer_configure_clock_signal(TOC_TIMER, 1, 31999);        // T = 2 s
+  timer_configure_clock_signal(DRIVER_TIMER, 128, 1e3);   // f = 250 Hz
+  timer_configure_clock_signal(TOC_TIMER, 2e3, 32000);        // T = 2 s
 
-  timer_set_pwm(BUZZER_TIMER, BUZZER_CHANNEL, NORMAL, BLINK);
-  timer_set_pwm(DRIVER_TIMER, IN1_CHANNEL, NORMAL, off);
-  timer_set_pwm(DRIVER_TIMER, IN2_CHANNEL, NORMAL, off);
-  timer_set_pwm(DRIVER_TIMER, IN3_CHANNEL, NORMAL, off);
-  timer_set_pwm(DRIVER_TIMER, IN4_CHANNEL, NORMAL, off);
+  timer_set_pwm(BUZZER_TIMER, BUZZER_CHANNEL, NORMAL, OFF);
+  timer_set_pwm(DRIVER_TIMER, IN1_CHANNEL, NORMAL, OFF);
+  timer_set_pwm(DRIVER_TIMER, IN2_CHANNEL, NORMAL, OFF);
+  timer_set_pwm(DRIVER_TIMER, IN3_CHANNEL, NORMAL, OFF);
+  timer_set_pwm(DRIVER_TIMER, IN4_CHANNEL, NORMAL, OFF);
   timer_set_toc(TOC_TIMER, CH1, 31999, WITH_IRQ);
 
-  adc_start(SCAN_OFF, BIT_12, 5);
+  adc_init(SCAN_OFF, BIT_12, POT_CHANNEL);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -239,19 +265,44 @@ int main(void)
   continue_from_pulse = 0;
   TOC_TIMER->SR &= 0;
   TOC_TIMER->CR1 |= 1;
+  unmask_interrupt(NVIC_TOC_TIMER);
   while (!continue_from_pulse)
       ;
   TOC_TIMER->CR1 &= ~1;
+  mask_interrupt(NVIC_TOC_TIMER);
+  ADC_START;
   ADC_WAIT_UNTIL_READY;
-  while (!break_main_while)
+  while (1)
   {
-    /* USER CODE END WHILE */
-      // Adaptar lectura del ADC y
-      // Escribir la adaptación a los motores
-    /* USER CODE BEGIN 3 */
+      if (!end_of_line)
+      {
+          uint16_t value = ADC1->DR;
+          /*
+           * value = 0 -> CCRy = 50%
+           * value = max -> CCRy = 100%
+           */
+#define U32_HALF ((1U << 16) - 1)
+#define U12_MAX ((1U << 12) - 1)
+          uint32_t result = value * (U32_HALF / U12_MAX) + U32_HALF;
+          motor_pwm = (Motor_State) { .value_1 = result, .value_2 = 0 };
+          driver_set_motor(&motor1, &motor_pwm);
+          driver_set_motor(&motor2, &motor_pwm);
+          /* USER CODE END WHILE */
+          /* USER CODE BEGIN 3 */
+      }
+      else
+      {
+          // Reactivar TOC
+          disable_buzzer = 1;
+          TOC_TIMER->CR1 |= 1;
+          // Pitido continuo durante 2s
+          timer_set_pwm_dc(BUZZER_TIMER, BUZZER_CHANNEL, ON);
+          continue_from_pulse = 0;
+          while (!continue_from_pulse)
+              ;
+          __disable_irq();
+      }
   }
-  // Reactivar TOC
-  // Pitido continuo durante 2s
   /* USER CODE END 3 */
 }
 
@@ -397,6 +448,141 @@ static void MX_LCD_Init(void)
   /* USER CODE BEGIN LCD_Init 2 */
 
   /* USER CODE END LCD_Init 2 */
+
+}
+
+/**
+  * @brief TIM2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM2_Init(void)
+{
+
+  /* USER CODE BEGIN TIM2_Init 0 */
+
+  /* USER CODE END TIM2_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM2_Init 1 */
+
+  /* USER CODE END TIM2_Init 1 */
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 0;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 65535;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM2_Init 2 */
+
+  /* USER CODE END TIM2_Init 2 */
+
+}
+
+/**
+  * @brief TIM3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM3_Init(void)
+{
+
+  /* USER CODE BEGIN TIM3_Init 0 */
+
+  /* USER CODE END TIM3_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM3_Init 1 */
+
+  /* USER CODE END TIM3_Init 1 */
+  htim3.Instance = TIM3;
+  htim3.Init.Prescaler = 0;
+  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim3.Init.Period = 65535;
+  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM3_Init 2 */
+
+  /* USER CODE END TIM3_Init 2 */
+
+}
+
+/**
+  * @brief TIM4 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM4_Init(void)
+{
+
+  /* USER CODE BEGIN TIM4_Init 0 */
+
+  /* USER CODE END TIM4_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM4_Init 1 */
+
+  /* USER CODE END TIM4_Init 1 */
+  htim4.Instance = TIM4;
+  htim4.Init.Prescaler = 0;
+  htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim4.Init.Period = 65535;
+  htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim4, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM4_Init 2 */
+
+  /* USER CODE END TIM4_Init 2 */
 
 }
 

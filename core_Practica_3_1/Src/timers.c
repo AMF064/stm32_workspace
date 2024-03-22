@@ -1,6 +1,6 @@
 #include "timers.h"
 
-
+// TODO: get rid of the switch-case with macros
 void timer_set_pwm(TIM_TypeDef* timer, uint8_t channel, uint8_t pwm_mode, uint16_t pwm_dc)
 {
     volatile uint32_t *ccmr = NULL,
@@ -46,4 +46,31 @@ void timer_set_pwm(TIM_TypeDef* timer, uint8_t channel, uint8_t pwm_mode, uint16
     *ccr = pwm_dc;
     timer->CCER |= (1 << e_offset);
     set_bits_in_32_register(ccmr, pwm_mode, 3, m_offset);
+}
+
+void timer_set_toc(TIM_TypeDef* timer, uint8_t channel, uint32_t comp_value, uint8_t with_irq)
+{
+    volatile uint32_t * ccr = NULL;
+    uint8_t ccye = 0;
+    switch (channel)
+    {
+    case 1:
+        ccr = &timer->CCR1;
+        ccye = CC1E;
+        break;
+    case 2:
+        ccr = &timer->CCR2;
+        ccye = CC2E;
+        break;
+    case 3:
+        ccr = &timer->CCR3;
+        ccye = CC3E;
+        break;
+    case 4:
+        ccr = &timer->CCR4;
+        ccye = CC4E;
+        break;
+    }
+    *ccr = comp_value;
+    if (with_irq) timer->DIER |= (1 << ccye);
 }
