@@ -54,10 +54,24 @@
 #define CC4E 12
 #define CC4P 13
 #define CC4NP 15
+//SR offsets
+#define UIF 0
+#define CC1IF 1
+#define CC2IF 2
+#define CC3IF 3
+#define CC4IF 4
+#define CC1OF 9
+#define CC2OF 10
+#define CC3OF 11
+#define CC4OF 12
 
 // PWM modes
 #define NORMAL 6
 #define INVERSE 7
+
+// IRQ enabled in TOC and TIC
+#define WITH_IRQ 1
+#define WITHOUT_IRQ 0
 
 // Channels
 #define CH1 1
@@ -69,10 +83,9 @@ typedef enum {
     TIC = 0,
     TOC = 1,
 } Mode;
-#define NO_PIN -1
 
-#define timer_configure_interrupt(timer, channel) set_bits_in_16_register(&timer->DIER, 1, 1, channel)
-#define timer_configure_event(timer, event) set_bits_in_16_register(&timer->EGR, 1, 1, event)
+#define timer_enable_interrupt(timer, channel) set_bits_in_16_register(&timer->DIER, 1, 1, channel)
+#define timer_enable_event(timer, event) set_bits_in_16_register(&timer->EGR, 1, 1, event)
 #define timer_configure_clock_signal(timer, psc, arr)   \
     do                                                  \
     {                                                   \
@@ -81,10 +94,6 @@ typedef enum {
     } while (0)
 #define timer_set_pwm_dc_hidden(timer, channel, dc) timer->CCR##channel = (dc)
 #define timer_set_pwm_dc(timer, channel, dc) timer_set_pwm_dc_hidden(timer, channel, dc)
-#define ccr_hidden(timer, channel) timer->CCR##channel
-#define ccr(timer, channel) ccr_hidden(timer, channel)
-#define ccye_hidden(channel) CC##channel##E
-#define ccye(channel) ccye_hidden(channel)
 
 TIMDEF void timer_set_pwm(TIM_TypeDef* timer, uint8_t channel, uint8_t pwm_mode, uint16_t pwm_dc);
 TIMDEF void timer_set_toc(TIM_TypeDef* timer, uint8_t channel, uint32_t comp_value, uint8_t with_irq);

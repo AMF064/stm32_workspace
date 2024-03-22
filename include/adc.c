@@ -1,6 +1,6 @@
 #include "adc.h"
 
-void adc_start(uint8_t scan_mode_on, Resolution res, uint8_t channel)
+void adc_init(uint8_t scan_mode_on, Resolution res, uint8_t channel)
 {
     ADC1->CR2 &= ~0x1;
     if (scan_mode_on) ADC1->CR1 |= (1 << SCAN);
