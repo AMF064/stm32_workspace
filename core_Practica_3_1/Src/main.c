@@ -272,6 +272,8 @@ int main(void)
   TOC_TIMER->CR1 &= ~1;
   mask_interrupt(NVIC_TOC_TIMER);
   
+  TIM4->SR &= 0;
+  TIM4->CR1 |= 1;
   ADC_START;
   ADC_WAIT_UNTIL_READY;
   while (1)
