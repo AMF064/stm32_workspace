@@ -54,8 +54,8 @@
 #define IN2 7
 #define IN3 8
 #define IN4 9
-#define IR1 1
-#define IR2 2
+#define IR_RIGHT 1
+#define IR_LEFT 2
 #define POT_PORT 5
 #define USER_BUTTON 0
 
@@ -69,7 +69,9 @@
 // ADC channels
 #define POT_CHANNEL 5
 
-#define BOTH_READS ((GPIOC->IDR >> IR1) & (GPIOC->IDR >> IR2) & 1)
+#define BOTH_READS ((~GPIOC->IDR >> IR_RIGHT) & (~GPIOC->IDR >> IR_LEFT) & 1)
+#define LEFT_READ ((~GPIOC->IDR >> IR_LEFT) & 1)
+#define RIGHT_READ ((~GPIOC->IDR >> IR_RIGHT) & 1)
 
 #define OFF (0)
 #define ON (~0)
@@ -137,54 +139,54 @@ void EXTI0_IRQHandler(void)
     NVIC->ICER[0] |= 1; // Desactivar esta interrupcion una vez ocurrida.
 }
 
-void EXTI1_IRQHandler(void)
-{
-    uint8_t value = (GPIOC->IDR >> IR1) & 1;
-    __disable_irq();
-    if (BOTH_READS)
-    {
-        timer_set_pwm_dc(BUZZER_TIMER, BUZZER_CHANNEL, ON);
-        driver_set_motor(&motor1, &off);
-        driver_set_motor(&motor2, &off);
-        end_of_line = 1;
-    }
-    else
-    {
-        timer_set_pwm_dc(BUZZER_TIMER, BUZZER_CHANNEL, (~value & 1) << 9);
-        driver_set_motor(&motor1, &motor_pwm);
-        driver_set_motor(&motor2, &off);
-    }
-    __enable_irq();
-    EXTI->PR |= 2;
-}
+/* void EXTI1_IRQHandler(void) */
+/* { */
+/*     uint8_t value = (GPIOC->IDR >> IR_RIGHT) & 1; */
+/*     __disable_irq(); */
+/*     if (BOTH_READS) */
+/*     { */
+/*         timer_set_pwm_dc(BUZZER_TIMER, BUZZER_CHANNEL, ON); */
+/*         driver_set_motor(&motor1, &off); */
+/*         driver_set_motor(&motor2, &off); */
+/*         end_of_line = 1; */
+/*     } */
+/*     else */
+/*     { */
+/*         timer_set_pwm_dc(BUZZER_TIMER, BUZZER_CHANNEL, (~value & 1) << 9); */
+/*         driver_set_motor(&motor1, &motor_pwm); */
+/*         driver_set_motor(&motor2, &off); */
+/*     } */
+/*     __enable_irq(); */
+/*     EXTI->PR |= 2; */
+/* } */
 
-void EXTI2_IRQHandler(void)
-{
-    uint8_t value = (GPIOC->IDR >> IR1) & 1;
-    __disable_irq();
-    if (BOTH_READS)
-    {
-        timer_set_pwm_dc(BUZZER_TIMER, BUZZER_CHANNEL, ON);
-        driver_set_motor(&motor1, &off);
-        driver_set_motor(&motor2, &off);
-        end_of_line = 1;
-    }
-    else
-    {
-        timer_set_pwm_dc(BUZZER_TIMER, BUZZER_CHANNEL, (~value & 1) << 9);
-        driver_set_motor(&motor1, &off);
-        driver_set_motor(&motor2, &motor_pwm);
-    }
-    __enable_irq();
-    EXTI->PR |= 4;
-}
+/* void EXTI2_IRQHandler(void) */
+/* { */
+/*     uint8_t value = (GPIOC->IDR >> IR_RIGHT) & 1; */
+/*     __disable_irq(); */
+/*     if (BOTH_READS) */
+/*     { */
+/*         timer_set_pwm_dc(BUZZER_TIMER, BUZZER_CHANNEL, ON); */
+/*         driver_set_motor(&motor1, &off); */
+/*         driver_set_motor(&motor2, &off); */
+/*         end_of_line = 1; */
+/*     } */
+/*     else */
+/*     { */
+/*         timer_set_pwm_dc(BUZZER_TIMER, BUZZER_CHANNEL, (~value & 1) << 9); */
+/*         driver_set_motor(&motor1, &off); */
+/*         driver_set_motor(&motor2, &motor_pwm); */
+/*     } */
+/*     __enable_irq(); */
+/*     EXTI->PR |= 4; */
+/* } */
 
 void TIM2_IRQHandler(void)
 {
     if (!(TIM2->SR & (1 << CC1IF))) return;
     __disable_irq();
     continue_from_pulse = 1;
-    TIM4->SR &= 0;
+    TIM2->SR &= 0;
     if (disable_buzzer) timer_set_pwm_dc(BUZZER_TIMER, BUZZER_CHANNEL, OFF);
     __enable_irq();
 }
@@ -227,8 +229,8 @@ int main(void)
   /* USER CODE BEGIN 2 */
   gpio_set_pin_mode(POT_GPIO, POT_PORT, ANALOG);
   gpio_set_pin_mode(GPIOA, USER_BUTTON, INPUT);
-  gpio_set_pin_mode(IR_GPIO, IR1, INPUT);
-  gpio_set_pin_mode(IR_GPIO, IR2, INPUT);
+  gpio_set_pin_mode(IR_GPIO, IR_RIGHT, INPUT);
+  gpio_set_pin_mode(IR_GPIO, IR_LEFT, INPUT);
   gpio_set_pin_mode(DRIVER_GPIO, IN1, AF);
   gpio_set_pin_mode(DRIVER_GPIO, IN2, AF);
   gpio_set_pin_mode(DRIVER_GPIO, IN3, AF);
@@ -240,13 +242,12 @@ int main(void)
   gpio_set_pin_alternate_function(DRIVER_GPIO, IN4, AF2);
   gpio_set_pin_alternate_function(GPIOB, BUZZER, AF2);
 
-  configure_interrupt(EXTI0, FALLING_EDGE, A);
-  configure_interrupt(EXTI1, BOTH_EDGES, C);
-  configure_interrupt(EXTI2, BOTH_EDGES, C);
 
   timer_configure_clock_signal(BUZZER_TIMER, 16e3, 1e3);    // T = 0.5 s
   timer_configure_clock_signal(DRIVER_TIMER, 128, 1e3);   // f = 250 Hz
   timer_configure_clock_signal(TOC_TIMER, 2e3, 32000);        // T = 2 s
+
+  configure_interrupt(EXTI0, FALLING_EDGE, A);
 
   timer_set_pwm(BUZZER_TIMER, BUZZER_CHANNEL, NORMAL, OFF);
   timer_set_pwm(DRIVER_TIMER, IN1_CHANNEL, NORMAL, OFF);
@@ -270,23 +271,42 @@ int main(void)
       ;
   TOC_TIMER->CR1 &= ~1;
   mask_interrupt(NVIC_TOC_TIMER);
+  
   ADC_START;
   ADC_WAIT_UNTIL_READY;
   while (1)
   {
       if (!end_of_line)
       {
-          uint16_t value = ADC1->DR;
-          /*
-           * value = 0 -> CCRy = 50%
-           * value = max -> CCRy = 100%
-           */
+
+          if (BOTH_READS)
+          {
+              timer_set_pwm_dc(BUZZER_TIMER, BUZZER_CHANNEL, ON);
+              driver_set_motor(&motor1, &off);
+              driver_set_motor(&motor2, &off);
+              end_of_line = 1;
+          }
+          else
+          {
+              ADC1->CR2 |= (1 << SWSTART);
+              uint16_t value = ADC1->DR;
+              /*
+               * value = 0 -> CCRy = 50%
+               * value = max -> CCRy = 100%
+               */
 #define U32_HALF ((1U << 16) - 1)
 #define U12_MAX ((1U << 12) - 1)
-          uint32_t result = value * (U32_HALF / U12_MAX) + U32_HALF;
-          motor_pwm = (Motor_State) { .value_1 = result, .value_2 = 0 };
-          driver_set_motor(&motor1, &motor_pwm);
-          driver_set_motor(&motor2, &motor_pwm);
+              uint32_t result = (uint32_t) (value * (U32_HALF / U12_MAX) + U32_HALF);
+              motor_pwm = (Motor_State) { .value_1 = result, .value_2 = 0 };
+              if (!LEFT_READ) driver_set_motor(&motor1, &motor_pwm);
+              else driver_set_motor(&motor1, &off);
+              
+              if (!RIGHT_READ) driver_set_motor(&motor2, &motor_pwm);
+              else driver_set_motor(&motor2, &off);
+              
+              if (!BOTH_READS) timer_set_pwm_dc(BUZZER_TIMER, BUZZER_CHANNEL, BLINK);
+              else timer_set_pwm_dc(BUZZER_TIMER, BUZZER_CHANNEL, OFF);
+          }
           /* USER CODE END WHILE */
           /* USER CODE BEGIN 3 */
       }
@@ -300,7 +320,6 @@ int main(void)
           continue_from_pulse = 0;
           while (!continue_from_pulse)
               ;
-          __disable_irq();
       }
   }
   /* USER CODE END 3 */
