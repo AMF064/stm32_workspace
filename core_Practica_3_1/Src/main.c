@@ -69,9 +69,9 @@
 // ADC channels
 #define POT_CHANNEL 5
 
-#define BOTH_READS ((~GPIOC->IDR >> IR_RIGHT) & (~GPIOC->IDR >> IR_LEFT) & 1)
-#define LEFT_READ ((~GPIOC->IDR >> IR_LEFT) & 1)
-#define RIGHT_READ ((~GPIOC->IDR >> IR_RIGHT) & 1)
+#define BOTH_READS ((GPIOC->IDR >> IR_RIGHT) & (GPIOC->IDR >> IR_LEFT) & 1)
+#define LEFT_READ ((GPIOC->IDR >> IR_LEFT) & 1)
+#define RIGHT_READ ((GPIOC->IDR >> IR_RIGHT) & 1)
 
 #define OFF (0)
 #define ON (~0)
